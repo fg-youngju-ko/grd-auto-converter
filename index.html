@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRD 재고파일 변환기</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+:root{
+  --bg:#eef2f6;--surface:#ffffff;--surface2:#f8fafc;
+  --border:#dbe3ea;--border2:#c9d4df;
+  --text:#1a1a18;--text2:#5a5a56;--text3:#9a9a94;
+  --hdr-fixed:#0f3d4c;--hdr-fixed-t:#e8f6f7;
+  --hdr-a:#dff4ee;--hdr-b:#eef8f5;--hdr-dt:#0f766e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--bg);color:var(--text);font-size:13px}
+
+/* ── 헤더 ── */
+.app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:200}
+.logo{width:30px;height:30px;background:var(--hdr-fixed);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo svg{width:14px;height:14px;fill:#e2e8f0}
+.app-header h1{font-size:14px;font-weight:600}
+.app-header p{font-size:11px;color:var(--text3);margin-top:1px}
+
+/* ── 패널 ── */
+.panel{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
+.fiw{display:flex;align-items:center;border:1px solid var(--border2);border-radius:7px;overflow:hidden;background:var(--surface2);height:32px}
+.fiw .fbtn{padding:0 10px;background:var(--surface);border:none;border-right:1px solid var(--border2);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);height:100%;white-space:nowrap}
+.fiw .fbtn:hover{background:var(--bg)}
+.fiw input[type=file]{display:none}
+.fn{padding:0 9px;font-size:11px;color:var(--text3);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fn.ok{color:#16a34a;font-weight:500}
+
+.btn-run{height:32px;padding:0 16px;background:var(--hdr-fixed);color:#e2e8f0;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:opacity .15s}
+.btn-run:hover:not(:disabled){opacity:.82}
+.btn-run:disabled{opacity:.35;cursor:not-allowed}
+.btn-dl{height:32px;padding:0 14px;background:#16a34a;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;display:none;align-items:center;gap:6px;white-space:nowrap}
+.btn-dl.show{display:flex}
+.btn-dl:hover{opacity:.88}
+.btn-clear{height:32px;padding:0 14px;background:var(--surface);color:#b91c1c;border:1px solid #fca5a5;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.btn-clear:hover{background:#fef2f2}
+
+/* ── 필터 바 ── */
+.filter-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 20px;display:none;flex-wrap:wrap;gap:8px;align-items:center}
+.filter-bar.show{display:flex}
+.filter-bar label{font-size:11px;color:var(--text2);font-weight:600;white-space:nowrap}
+.filter-bar select{height:28px;padding:0 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;background:var(--surface);color:var(--text);cursor:pointer}
+.filter-bar select:focus{outline:2px solid #3b82f6;outline-offset:-1px}
+.fsep{width:1px;height:20px;background:var(--border2);flex-shrink:0}
+
+.toggle-btn{height:28px;padding:0 12px;border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:background .12s,color .12s,border-color .12s}
+.toggle-btn:hover{background:var(--surface2)}
+.toggle-btn.on{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.toggle-btn.on-grn{background:#dcfce7;color:#15803d;border-color:#86efac}
+.toggle-btn.on-blu{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd}
+
+.filter-result{font-size:11px;color:var(--text3);margin-left:4px}
+
+/* ── 범례·통계 ── */
+.info-bar{background:var(--surface2);border-bottom:1px solid var(--border);padding:7px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)}
+.dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.sep{width:1px;height:13px;background:var(--border2);flex-shrink:0}
+.sc{font-size:11px;color:var(--text2);display:none;align-items:center;gap:4px}
+.sc strong{font-size:13px;font-weight:700;color:var(--text)}
+
+/* ── 토스트 ── */
+.toast{display:none;padding:8px 20px;font-size:12px;font-weight:500}
+.toast.show{display:block}
+.toast.info{background:#eff6ff;color:#1d4ed8;border-bottom:1px solid #bfdbfe}
+.toast.success{background:#f0fdf4;color:#15803d;border-bottom:1px solid #bbf7d0}
+.toast.error{background:#fef2f2;color:#b91c1c;border-bottom:1px solid #fecaca}
+
+/* ── 테이블 ── */
+/* 상단 스크롤바: tbl-wrap 바깥, position:sticky로 상단 고정 */
+.tbl-outer{position:relative}
+.tbl-scroll-top{
+  overflow-x:auto;overflow-y:hidden;height:48px;
+  position:sticky;top:0;z-index:50;
+  background:#f0f0ee;
+}
+.tbl-scroll-top::-webkit-scrollbar{height:48px;background:#f0f0ee}
+.tbl-scroll-top::-webkit-scrollbar-thumb{background:#b0afa8;border-radius:6px;border:6px solid #f0f0ee}
+.tbl-scroll-top::-webkit-scrollbar-thumb:hover{background:#888880}
+.tbl-scroll-inner{height:1px;display:block}
+
+.tbl-wrap{overflow:auto;max-height:calc(100vh - 182px)}
+.tbl-wrap::-webkit-scrollbar{height:0;width:0}
+
+table{border-collapse:collapse;table-layout:fixed;min-width:max-content;font-size:12px}
+/* 단품명칭 너비는 JS 리사이즈로 관리 */
+th,td{border:1px solid #e0e0da;padding:3px 5px;white-space:nowrap;vertical-align:middle;position:relative}
+
+/* ── 행 고정 (수직 sticky) ── */
+/* 일반 헤더 th: top만 고정, z-index 낮게 */
+thead tr:first-child th   { position:sticky; top:0px;  z-index:4; }
+thead tr:nth-child(2) th  { position:sticky; top:27px; z-index:4; }
+
+/* ── 열 고정 (수평 sticky) — sc0~sc9 ── */
+/* left는 JS(updateStickyLeft)가 인라인으로 주입 */
+.sc0,.sc1,.sc2,.sc3,.sc4,.sc5,.sc6,.sc7,.sc8,.sc9{
+  position:sticky;
+  z-index:5; /* 데이터 행 열고정: 일반 th보다 위 */
+}
+/* 헤더 행의 고정열: 행+열 교차점 → 가장 위 */
+thead tr:first-child .sc0,thead tr:first-child .sc1,
+thead tr:first-child .sc2,thead tr:first-child .sc3,
+thead tr:first-child .sc4,thead tr:first-child .sc5,
+thead tr:first-child .sc6,thead tr:first-child .sc7,
+thead tr:first-child .sc8,thead tr:first-child .sc9{ top:0px;  z-index:10; }
+thead tr:nth-child(2) .sc0,
+thead tr:nth-child(2) .sc1{ top:27px; z-index:10; }
+
+/* 헤더 행1 */
+thead tr:first-child th.fixed{background:var(--hdr-fixed);color:var(--hdr-fixed-t);font-weight:600;font-size:11px}
+thead tr:first-child th.dh{color:var(--hdr-dt);font-weight:600;font-size:11px;text-align:center}
+thead tr:first-child th.dh.odd{background:var(--hdr-a)}
+thead tr:first-child th.dh.even{background:var(--hdr-b)}
+
+/* 헤더 행2 서브 */
+thead tr:nth-child(2) th{font-size:10px;font-weight:600;text-align:center;padding:3px}
+thead tr:nth-child(2) th.s0{background:#dbeafe;color:#1e40af}   /* 출예 */
+thead tr:nth-child(2) th.s1{background:#f0fdf4;color:#166534}   /* 물입예 */
+thead tr:nth-child(2) th.s2{background:#faf5ff;color:#6b21a8}   /* 계획 */
+thead tr:nth-child(2) th.s3{background:#e0f2fe;color:#0369a1;font-weight:700} /* 예량 */
+thead tr:nth-child(2) th.s4{background:#f8fafc;color:#475569}   /* 기타 */
+thead tr:nth-child(2) th.fx2{background:#263345;color:#94a3b8;font-size:10px}
+
+/* 고정열 — A~J 10열 모두 sticky, left는 JS가 동적으로 계산해 인라인 적용 */
+.sc0,.sc1,.sc2,.sc3,.sc4,.sc5,.sc6,.sc7,.sc8,.sc9{
+  position:sticky;z-index:3;
+}
+/* 배경색 직접 지정 (inherit은 투명 문제 발생) */
+thead tr:first-child .sc0,
+thead tr:first-child .sc1,
+thead tr:first-child .sc2,
+thead tr:first-child .sc3,
+thead tr:first-child .sc4,
+thead tr:first-child .sc5,
+thead tr:first-child .sc6,
+thead tr:first-child .sc7,
+thead tr:first-child .sc8,
+thead tr:first-child .sc9{ background:var(--hdr-fixed);color:var(--hdr-fixed-t) }
+thead tr:nth-child(2) .sc0,
+thead tr:nth-child(2) .sc1{ background:#263345;color:#94a3b8 }
+tbody tr:nth-child(odd)  .sc0,tbody tr:nth-child(odd)  .sc1,
+tbody tr:nth-child(odd)  .sc2,tbody tr:nth-child(odd)  .sc3,
+tbody tr:nth-child(odd)  .sc4,tbody tr:nth-child(odd)  .sc5,
+tbody tr:nth-child(odd)  .sc6,tbody tr:nth-child(odd)  .sc7,
+tbody tr:nth-child(odd)  .sc8,tbody tr:nth-child(odd)  .sc9{ background:#fff }
+tbody tr:nth-child(even) .sc0,tbody tr:nth-child(even) .sc1,
+tbody tr:nth-child(even) .sc2,tbody tr:nth-child(even) .sc3,
+tbody tr:nth-child(even) .sc4,tbody tr:nth-child(even) .sc5,
+tbody tr:nth-child(even) .sc6,tbody tr:nth-child(even) .sc7,
+tbody tr:nth-child(even) .sc8,tbody tr:nth-child(even) .sc9{ background:#f8f8f7 }
+tbody tr.managed .sc0,tbody tr.managed .sc1,tbody tr.managed .sc2,
+tbody tr.managed .sc3,tbody tr.managed .sc4,tbody tr.managed .sc5,
+tbody tr.managed .sc6,tbody tr.managed .sc7,tbody tr.managed .sc8,
+tbody tr.managed .sc9{ background:#eff6ff!important }
+/* J열(sc9) 우측 경계선 */
+.sc9{border-right:2px solid #94a3b8!important}
+thead .sc9{border-right:2px solid #475569!important}
+
+/* 단품명칭(D열=sc3) 드래그 리사이즈 */
+th.sc3{position:sticky;overflow:hidden;user-select:none;max-width:9999px}
+th.sc3 .resizer{
+  position:absolute;right:0;top:0;height:100%;
+  width:6px;cursor:col-resize;
+  background:rgba(148,163,184,0.4);
+  border-radius:0 2px 2px 0;
+}
+th.sc3 .resizer:hover,th.sc3 .resizer.dragging{background:#3b82f6}
+td.sc3{overflow:hidden;text-overflow:clip;max-width:0;padding-left:0;padding-right:0}
+td{cursor:default}
+/* 복사 가능 셀 */
+td.col-code,td.sc3{cursor:pointer}
+td.col-code:hover,td.sc3:hover{filter:brightness(.93)}
+
+/* 데이터 행 배경 */
+tbody tr:nth-child(odd)  td{background:#fff}
+tbody tr:nth-child(even) td{background:#fbfcfd}
+tbody tr.managed td{background:#eff6ff!important}
+tbody tr.managed td.col-code{color:#1d4ed8;font-weight:700}
+
+/* 예량 열 */
+td.yy{background:#edf7f7!important}
+tbody tr.managed td.yy{background:#dbeafe!important}
+
+/* 토·일 날짜 그룹 — 연한 주황 */
+thead tr:first-child th.dh.wknd{ background:#7c3a00!important;color:#ffe0c0!important }
+thead tr:nth-child(2) th.wknd  { background:#fff3e0!important;color:#b45309!important }
+td.wknd{ background:#fff8f0!important }
+td.wknd.yy{ background:#ffecd4!important }
+/* 수량 색상은 주말보다 우선 */
+td.neg,td.neg.wknd,td.neg.yy,td.neg.wknd.yy,
+tr.managed td.neg,tr.managed td.neg.wknd,
+tr.managed td.neg.yy,tr.managed td.neg.wknd.yy{background:#e53e3e!important;color:#ffffff!important;font-weight:700}
+/* 투입후재고 음수 — 연한 빨강 */
+td.neg-light,tr.managed td.neg-light{background:#fecaca!important;color:#b91c1c!important;font-weight:700}
+td.grn,td.grn.wknd,td.grn.yy,td.grn.wknd.yy,
+tr.managed td.grn,tr.managed td.grn.wknd,
+tr.managed td.grn.yy,tr.managed td.grn.wknd.yy{background:#bbf7d0!important;color:#15803d!important;font-weight:600}
+/* 물입예 양수 — 진한 강조 */
+td.mip,td.mip.wknd,
+tr.managed td.mip,tr.managed td.mip.wknd{background:#4ade80!important;color:#14532d!important;font-weight:700}
+
+td.num{text-align:right}
+tr.hidden-row{display:none}
+
+/* ── 헤더 클릭 → 열별 음수 필터 ── */
+thead th[data-ci]{cursor:pointer}
+thead th[data-ci]:hover{filter:brightness(1.12)}
+thead th[data-ci].col-filter-active{outline:2px solid #ef4444;outline-offset:-2px}
+
+/* ── 행 hover 시 굵은 테두리 ── */
+tbody tr:hover td{box-shadow:inset 0 2px 0 0 #2563eb,inset 0 -2px 0 0 #2563eb}
+tbody tr:hover td:first-child{box-shadow:inset 0 2px 0 0 #2563eb,inset 0 -2px 0 0 #2563eb,inset 2px 0 0 0 #2563eb}
+tbody tr:hover td:last-child{box-shadow:inset 0 2px 0 0 #2563eb,inset 0 -2px 0 0 #2563eb,inset -2px 0 0 0 #2563eb}
+
+/* ── 하단 합계 행 ── */
+tfoot tr td{
+  position:sticky;bottom:0;z-index:6;
+  background:#fff3cd;color:#7c4a03;font-weight:700;
+  border-top:2px solid #94a3b8;text-align:right;
+}
+tfoot tr td.sc0,tfoot tr td.sc1,tfoot tr td.sc2,tfoot tr td.sc3,
+tfoot tr td.sc4,tfoot tr td.sc5,tfoot tr td.sc6,tfoot tr td.sc7,
+tfoot tr td.sc8,tfoot tr td.sc9{z-index:12;background:#fff3cd}
+tfoot tr td.sc0{text-align:left}
+
+/* ── 셀 메모 (엑셀 코멘트 스타일) ── */
+/* position은 기본 th,td{position:relative}가 담당 — 여기서 재지정하면
+   명시도(0,0,1,1)가 틀고정 열의 .sc0~.sc9{position:sticky}(0,0,1,0)보다 높아져
+   틀고정이 풀리므로 절대 position을 다시 선언하지 않는다. */
+td.has-memo::after{
+  content:'';position:absolute;top:0;left:0;
+  border-width:11px 11px 0 0;border-style:solid;
+  border-color:#e11d2e transparent transparent transparent;
+  pointer-events:none;
+}
+/* 음수(빨간 배경) 셀의 메모 삼각형은 시인성을 위해 초록색으로 표시 */
+td.has-memo.neg::after,td.has-memo.neg-light::after{
+  border-color:#22c55e transparent transparent transparent;
+}
+.memo-tooltip{
+  position:fixed;z-index:10000;
+  background:#ffffe1;border:1px solid #6b6b1f;
+  padding:6px 9px;font-size:12px;line-height:1.45;color:#1a1a18;
+  max-width:240px;white-space:pre-wrap;word-break:break-word;
+  box-shadow:2px 3px 8px rgba(0,0,0,.28);
+  pointer-events:none;
+}
+.memo-editor{
+  position:fixed;z-index:10001;width:230px;
+  background:#fff;border:1px solid #94a3b8;border-radius:7px;
+  box-shadow:0 6px 18px rgba(0,0,0,.22);
+  padding:9px;display:flex;flex-direction:column;gap:7px;
+}
+.memo-editor textarea{
+  width:100%;height:84px;resize:vertical;font-size:12px;line-height:1.4;
+  border:1px solid #cbd5e1;border-radius:5px;padding:6px;
+  font-family:inherit;color:var(--text)
+}
+.memo-editor textarea:focus{outline:2px solid #3b82f6;outline-offset:-1px}
+.memo-editor .memo-btns{display:flex;gap:6px;justify-content:flex-end}
+.memo-editor button{
+  font-size:11px;padding:5px 10px;border-radius:5px;border:1px solid #cbd5e1;
+  background:#f8fafc;color:var(--text2);cursor:pointer;font-weight:600;
+}
+.memo-editor button:hover{background:var(--bg)}
+.memo-editor button.primary{background:var(--hdr-fixed);color:#e2e8f0;border-color:var(--hdr-fixed)}
+.memo-editor button.danger{color:#b91c1c;border-color:#fca5a5}
+
+/* ── 관리 품목 코드 (로컬 영구 저장) 관리 패널 ── */
+.code-mgr-overlay{
+  position:fixed;inset:0;z-index:10002;
+  background:rgba(15,23,42,.35);
+  display:flex;align-items:center;justify-content:center;
+}
+.code-mgr{
+  width:380px;max-height:74vh;background:#fff;border-radius:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.3);padding:16px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.code-mgr h3{font-size:14px;font-weight:700;color:var(--text);display:flex;justify-content:space-between;align-items:center}
+.code-mgr h3 button{background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;line-height:1;padding:2px 4px}
+.code-mgr h3 button:hover{color:var(--text)}
+.code-mgr .cm-add{display:flex;gap:6px}
+.code-mgr .cm-add input{
+  flex:1;height:30px;padding:0 8px;border:1px solid var(--border2);
+  border-radius:6px;font-size:12px;font-family:inherit;
+}
+.code-mgr .cm-add button{
+  height:30px;padding:0 12px;border-radius:6px;border:1px solid var(--hdr-fixed);
+  background:var(--hdr-fixed);color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+}
+.code-mgr .cm-hint{font-size:11px;color:var(--text3)}
+.code-mgr .cm-list{
+  flex:1;overflow-y:auto;display:flex;flex-wrap:wrap;align-content:flex-start;
+  gap:6px;min-height:60px;max-height:280px;border:1px solid var(--border);border-radius:8px;padding:8px;
+}
+.code-mgr .cm-chip{
+  display:flex;align-items:center;gap:4px;background:#eff6ff;border:1px solid #93c5fd;
+  color:#1d4ed8;font-size:12px;font-weight:600;padding:3px 3px 3px 9px;border-radius:14px;
+}
+.code-mgr .cm-chip button{background:none;border:none;color:#1d4ed8;cursor:pointer;font-size:14px;line-height:1;padding:2px 6px;border-radius:50%}
+.code-mgr .cm-chip button:hover{background:#dbeafe}
+.code-mgr .cm-empty{color:var(--text3);font-size:12px;padding:10px 2px}
+.code-mgr .cm-foot{display:flex;justify-content:space-between;align-items:center}
+.code-mgr .cm-foot .cm-count{font-size:11px;color:var(--text3)}
+.code-mgr .cm-foot button{
+  font-size:11px;padding:5px 10px;border-radius:5px;border:1px solid #fca5a5;
+  background:#f8fafc;color:#b91c1c;cursor:pointer;font-weight:600;
+}
+.code-mgr .cm-foot button:hover{background:#fef2f2}
+
+/* 빈 화면 */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px 40px;gap:10px;color:var(--text3)}
+.empty svg{width:44px;height:44px;opacity:.2}
+.empty p{font-size:28px}
+.empty small{font-size:24px}
+
+.empty-guide{margin-top:22px;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;max-width:760px;width:100%}
+.empty-guide h3{font-size:15px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.empty-guide h3:not(:first-child){margin-top:16px}
+.empty-guide ol,.empty-guide ul{padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.empty-guide li{font-size:16px;color:var(--text2);line-height:1.5}
+.empty-guide li b{color:var(--text);font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="logo"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+  <div><h1>GRD 재고파일 변환기</h1><p>xls 업로드 → 예량 계산 + 서식 → xlsx 다운로드</p></div>
+</div>
+
+<div class="panel">
+  <div class="fg">
+    <label>재고 파일 (필수)</label>
+    <div class="fiw">
+      <button class="fbtn" onclick="document.getElementById('inp-xls').click()">📂 파일 선택</button>
+      <input type="file" id="inp-xls" accept=".xls,.xlsx">
+      <span class="fn" id="lbl-xls">grd_list00_*.xls</span>
+    </div>
+  </div>
+  <div class="fg">
+    <label>관리 품목 코드 (로컬 저장, 선택)</label>
+    <div class="fiw">
+      <button class="fbtn" onclick="openCodeManager()">🏷️ 코드 관리</button>
+      <button class="fbtn" onclick="document.getElementById('inp-txt').click()" title="txt/csv 파일의 코드를 저장된 목록에 한번에 추가">📋 파일로 추가</button>
+      <input type="file" id="inp-txt" accept=".txt,.csv">
+      <span class="fn" id="lbl-txt">저장된 코드 없음</span>
+    </div>
+  </div>
+  <button class="btn-run" id="btn-run" disabled onclick="run()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>변환 시작
+  </button>
+  <button class="btn-dl" id="btn-dl" onclick="download()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>xlsx 다운로드
+  </button>
+  <button class="btn-clear" id="btn-clear" onclick="clearAll()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>전체 초기화
+  </button>
+</div>
+
+<!-- 필터 바 -->
+<div class="filter-bar" id="filter-bar">
+  <label>🔍 필터</label>
+
+  <div class="fg" style="flex-direction:row;align-items:center;gap:5px">
+    <label style="font-size:11px;color:var(--text2)">재고구분</label>
+    <select id="f-gubun" onchange="applyFilter()"><option value="">전체</option></select>
+  </div>
+
+  <div class="fg" style="flex-direction:row;align-items:center;gap:5px">
+    <label style="font-size:11px;color:var(--text2)">코드/명칭</label>
+    <input type="text" id="f-code" placeholder="품목코드 또는 단품명칭 검색…"
+      style="height:28px;padding:0 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;width:170px"
+      oninput="applyFilter()">
+  </div>
+
+  <div class="fsep"></div>
+
+  <button class="toggle-btn" id="t-neg" onclick="toggleFilter('neg')">음수 행만</button>
+  <button class="toggle-btn" id="t-grn" onclick="toggleFilter('grn')">입잔 양수만</button>
+  <button class="toggle-btn" id="t-blu" onclick="toggleFilter('blu')">관리 품목만</button>
+  <button class="toggle-btn" id="t-rst" onclick="resetFilter()" style="color:var(--text3)">초기화</button>
+
+  <span class="filter-result" id="f-result"></span>
+</div>
+
+<div class="info-bar">
+  <div class="leg"><span class="dot" style="background:#e53e3e;border:1px solid #c53030"></span>음수</div>
+  <div class="leg"><span class="dot" style="background:#bbf7d0;border:1px solid #86efac"></span>입잔 양수</div>
+  <div class="leg"><span class="dot" style="background:#e0f2fe;border:1px solid #7dd3fc"></span>예량 열</div>
+  <div class="leg"><span class="dot" style="background:#eff6ff;border:1px solid #93c5fd"></span>관리 품목 행</div>
+  <div class="sep"></div>
+  <div class="sc" id="sc-neg"><strong id="v-neg">0</strong>음수 셀</div>
+  <div class="sc" id="sc-grn"><strong id="v-grn">0</strong>입잔 양수</div>
+  <div class="sc" id="sc-blu"><strong id="v-blu">0</strong>관리 품목</div>
+  <div class="sc" id="sc-row"><strong id="v-row">0</strong>행</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="tbl-outer">
+<div class="tbl-scroll-top" id="tbl-scroll-top"><div class="tbl-scroll-inner" id="tbl-scroll-inner"></div></div>
+<div class="tbl-wrap" id="tbl-area">
+  <div class="empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+    </svg>
+    <p>재고 파일을 선택하고 변환을 시작하세요</p>
+    <small>grd_list00_YYYYMMDDHHMMSS.xls 형식</small>
+
+    <div class="empty-guide">
+      <h3>사용 방법</h3>
+      <ol>
+        <li><b>재고 파일</b>(grd_list00_*.xls)을 선택합니다. (필수)</li>
+        <li><b>관리 품목 코드</b>는 브라우저에 영구 저장됩니다. <b>🏷️ 코드 관리</b>에서 코드를 추가·삭제하거나, <b>📋 파일로 추가</b>로 txt/csv 파일(한 줄에 코드 하나)의 코드를 한번에 담을 수 있습니다. 등록된 코드의 품목 행은 파란색으로 강조됩니다. (선택)</li>
+        <li><b>변환 시작</b>을 누르면 예량 계산과 색상 서식이 적용된 표가 화면에 표시됩니다.</li>
+        <li>표가 만족스러우면 <b>xlsx 다운로드</b>로 결과 파일을 저장합니다.</li>
+      </ol>
+      <h3>표 사용 팁</h3>
+      <ul>
+        <li>날짜별 <b>출예/물입예/계획/예량/기타</b> 열의 헤더를 클릭하면 그 열만 필터됩니다. (물입예는 0이 아닌 값, 나머지는 음수만)</li>
+        <li>필터 바의 <b>음수 행만 / 입잔 양수만 / 관리 품목만</b> 토글과 재고구분·품목코드/단품명칭 검색으로 행을 좁힐 수 있습니다.</li>
+        <li>표 맨 아래 <b>합계 행</b>은 현재 화면에 표시 중인 행만 기준으로 자동 계산됩니다.</li>
+        <li>행에 마우스를 올리면 굵은 테두리로 해당 행이 강조됩니다.</li>
+        <li>품목코드·단품명칭 셀을 클릭하면 클립보드로 복사됩니다.</li>
+        <li>셀에서 <b>마우스 우클릭</b>하면 메모를 입력할 수 있고, 메모가 있는 셀은 우측 상단에 빨간 표시가 붙어 마우스를 올리면 내용이 보입니다.</li>
+        <li>변환 결과와 메모는 브라우저에 <b>4시간</b> 동안 자동 저장되어 창을 닫았다 열어도 이어서 볼 수 있습니다. <b>전체 초기화</b> 버튼으로 언제든 완전히 삭제할 수 있습니다.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</div><!-- /tbl-outer -->
+
+<script>
+let xlsFile=null, codesSet=new Set(), outWb=null, outName='변환결과.xlsx';
+// 필터 상태
+let activeFilters={neg:false,grn:false,blu:false};
+// 행 메타 (필터링용)
+let rowMeta=[];  // [{tr, gubun, code, hasNeg, hasGrn, isManaged}]
+// 셀 메모: key = "원본행:원본열" → 텍스트
+let memos={};
+// 로컬 캐시(복원)용 원본 데이터 보관
+let lastXlsBuffer=null, lastXlsName='';
+// 파일 미선택 상태의 결과 영역 초기 HTML (전체 초기화 시 복원용)
+const emptyHTML=document.getElementById('tbl-area').innerHTML;
+
+/* ── 관리 품목 코드: 브라우저에 영구 저장(localStorage) ── */
+const MANAGED_CODES_KEY='grdManagedCodesV1';
+function loadManagedCodes(){
+  try{
+    const arr=JSON.parse(localStorage.getItem(MANAGED_CODES_KEY)||'[]');
+    return Array.isArray(arr)?arr:[];
+  }catch(err){ console.warn('관리 품목 코드 로드 실패:',err); return []; }
+}
+function saveManagedCodes(){
+  try{ localStorage.setItem(MANAGED_CODES_KEY, JSON.stringify([...codesSet])); }
+  catch(err){ console.warn('관리 품목 코드 저장 실패:',err); }
+}
+function updateCodeLabel(){
+  const n=codesSet.size;
+  setLabel('lbl-txt', n?`✓ 저장된 코드 ${n}개`:'저장된 코드 없음', n>0);
+}
+codesSet=new Set(loadManagedCodes());
+updateCodeLabel();
+
+/* 코드 목록이 바뀐 뒤: 저장 + 라벨 갱신 + (이미 변환된 표가 있으면) 강조 표시 재적용 */
+function onManagedCodesChanged(){
+  saveManagedCodes();
+  updateCodeLabel();
+  if(xlsFile) run();
+}
+
+/* ── 파일 입력 ── */
+document.getElementById('inp-xls').addEventListener('change',e=>{
+  if(!e.target.files[0])return;
+  xlsFile=e.target.files[0];
+  outName=xlsFile.name.replace(/\.xls$/i,'')+'_변환.xlsx';
+  memos={}; // 새 재고 파일 선택 시 이전 파일에 달린 메모는 의미가 없으므로 초기화
+  setLabel('lbl-xls','✓ '+xlsFile.name,true);
+  document.getElementById('btn-run').disabled=false;
+});
+/* txt/csv 파일의 코드를 저장된 관리 품목 코드 목록에 추가(병합) */
+document.getElementById('inp-txt').addEventListener('change',e=>{
+  if(!e.target.files[0])return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    const codes=ev.target.result.split(/\r?\n/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+    codes.forEach(c=>codesSet.add(c));
+    onManagedCodesChanged();
+    toast(codes.length+'개 코드를 저장된 목록에 추가했습니다','success');
+    e.target.value='';
+  };
+  rd.readAsText(e.target.files[0],'utf-8');
+});
+
+/* ── 관리 품목 코드 관리 패널 ── */
+function renderCodeManagerList(){
+  const list=document.querySelector('.code-mgr .cm-list');
+  if(!list)return;
+  const codes=[...codesSet].sort();
+  list.innerHTML=codes.length? codes.map(c=>
+    `<span class="cm-chip">${escapeHtml(c)}<button type="button" data-code="${escapeHtml(c)}" title="삭제">×</button></span>`
+  ).join('') : '<div class="cm-empty">저장된 코드가 없습니다.</div>';
+  const cnt=document.querySelector('.code-mgr .cm-count');
+  if(cnt) cnt.textContent=codes.length+'개';
+}
+function openCodeManager(){
+  closeCodeManager();
+  const overlay=document.createElement('div');
+  overlay.className='code-mgr-overlay';
+  overlay.innerHTML=
+    '<div class="code-mgr">'+
+      '<h3>관리 품목 코드<button type="button" data-act="close" title="닫기">✕</button></h3>'+
+      '<div class="cm-add">'+
+        '<input type="text" id="cm-input" placeholder="코드 입력 후 추가 (쉼표·줄바꿈으로 여러 개)">'+
+        '<button type="button" data-act="add">추가</button>'+
+      '</div>'+
+      '<div class="cm-hint">브라우저에 저장되어 다음에 열어도 그대로 남습니다.</div>'+
+      '<div class="cm-list"></div>'+
+      '<div class="cm-foot"><span class="cm-count">0개</span><button type="button" data-act="clear">전체 삭제</button></div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+  renderCodeManagerList();
+
+  const input=overlay.querySelector('#cm-input');
+  input.focus();
+
+  function addFromInput(){
+    const raw=input.value;
+    const codes=raw.split(/[,\s]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+    if(!codes.length)return;
+    codes.forEach(c=>codesSet.add(c));
+    onManagedCodesChanged();
+    renderCodeManagerList();
+    input.value='';
+    input.focus();
+  }
+
+  overlay.addEventListener('click', e=>{
+    if(e.target===overlay){ closeCodeManager(); return; }
+    const act=e.target.getAttribute('data-act');
+    if(act==='close') closeCodeManager();
+    else if(act==='add') addFromInput();
+    else if(act==='clear'){
+      if(!codesSet.size)return;
+      if(!confirm('저장된 관리 품목 코드를 모두 삭제하시겠습니까?'))return;
+      codesSet.clear();
+      onManagedCodesChanged();
+      renderCodeManagerList();
+    }
+    else{
+      const code=e.target.getAttribute('data-code');
+      if(code!==null){
+        codesSet.delete(code);
+        onManagedCodesChanged();
+        renderCodeManagerList();
+      }
+    }
+  });
+  input.addEventListener('keydown', e=>{
+    e.stopPropagation();
+    if(e.key==='Enter'){ e.preventDefault(); addFromInput(); }
+    else if(e.key==='Escape'){ closeCodeManager(); }
+  });
+  document.addEventListener('keydown', onCodeManagerEsc, true);
+}
+function onCodeManagerEsc(e){
+  if(e.key==='Escape') closeCodeManager();
+}
+function closeCodeManager(){
+  const overlay=document.querySelector('.code-mgr-overlay');
+  if(overlay) overlay.remove();
+  document.removeEventListener('keydown', onCodeManagerEsc, true);
+}
+function setLabel(id,txt,ok){
+  const el=document.getElementById(id);
+  el.textContent=txt; el.className='fn'+(ok?' ok':'');
+}
+function toast(msg,type){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='toast show '+type;
+}
+
+/* ── 변환 ── */
+function run(){
+  if(!xlsFile)return;
+  toast('파일 읽는 중…','info');
+  document.getElementById('btn-dl').className='btn-dl';
+  outWb=null; rowMeta=[];
+  lastXlsName=xlsFile.name;
+
+  const reader=new FileReader();
+  reader.onload=e=>{
+    lastXlsBuffer=e.target.result;
+    processData(new Uint8Array(e.target.result));
+  };
+  reader.readAsArrayBuffer(xlsFile);
+}
+
+/* data: Uint8Array — 업로드 직후 또는 캐시 복원 시 공통으로 사용하는 변환 처리 */
+function processData(data){
+    try{
+      const wb=XLSX.read(data,{type:'array',cellStyles:true,sheetStubs:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const ref=XLSX.utils.decode_range(ws['!ref']||'A1');
+      const nrows=ref.e.r+1, ncols=ref.e.c+1;
+
+      /* 날짜 그룹 — 1행 라벨 + 2행 '출예' 서브헤더가 모두 있어야 진짜 날짜 그룹.
+         (기간)최초 부족예상일~용도구분 등 꼬리의 통계 열도 1행에 텍스트가 있어
+         서브헤더 체크 없이는 날짜 그룹으로 오인되어 예량 계산값으로 덮어써짐. */
+      const dateGroups=[];
+      for(let c=10;c<ncols-4;c+=5){
+        const v=gcv(ws,0,c);
+        const sub=String(gcv(ws,1,c)||'').trim();
+        if(v && sub==='출예') dateGroups.push({col:c,label:String(v)});
+      }
+      const chulye_cols=dateGroups.map(g=>g.col);
+      const yeyang_cols=dateGroups.map(g=>g.col+3);
+      const yeyang_set=new Set(yeyang_cols);
+      const mulip_cols=dateGroups.map(g=>g.col+1);
+      const mulip_set=new Set(mulip_cols);
+
+      /* 예량 계산 */
+      const ym={};
+      for(let r=2;r<nrows;r++){
+        const av=gcv(ws,r,0); if(!av&&av!==0)continue;
+        const hyunjae=pn(gcv(ws,r,6)), chuljan=pn(gcv(ws,r,8));
+        let prev=hyunjae-chuljan;
+        ym[r]={};
+        for(let i=0;i<chulye_cols.length;i++){
+          const cy=chulye_cols[i],yy=yeyang_cols[i];
+          const yval=prev-pn(gcv(ws,r,cy));
+          ym[r][yy]=yval; prev=yval;
+        }
+      }
+
+      /* 데이터 마지막 행 */
+      let lastR=2;
+      for(let r=2;r<nrows;r++){
+        const v=gcv(ws,r,0);
+        if(v!==null&&v!==''&&!isNaN(parseFloat(v)))lastR=r;
+      }
+
+      /* 관리 품목 행 */
+      const managedRows=new Set();
+      if(codesSet.size>0){
+        for(let r=2;r<=lastR;r++){
+          const code=String(gcv(ws,r,1)||'').toUpperCase();
+          if(codesSet.has(code))managedRows.add(r);
+        }
+      }
+
+      /* xlsx 워크북 생성 (ExcelJS — 셀 배경색 저장 지원) */
+      const newWb=new ExcelJS.Workbook();
+      const newWs=newWb.addWorksheet('Sheet1');
+      let negCnt=0,grnCnt=0,bluCnt=managedRows.size;
+
+      for(let r=0;r<nrows;r++){
+        let rowHasNeg=false,rowHasGrn=false;
+        for(let c=0;c<ncols;c++){
+          const oc=ws[XLSX.utils.encode_cell({r,c})];
+          let val=oc?oc.v:undefined;
+          if(ym[r]&&ym[r][c]!==undefined) val=ym[r][c];
+          if(val===undefined||val===null||val==='')continue;
+          if(typeof val==='number'&&val===Math.floor(val))val=Math.floor(val);
+
+          const cell=newWs.getCell(r+1,c+1);
+          cell.value=val;
+          if(oc&&oc.z)cell.numFmt=oc.z;
+
+          const nv=typeof val==='number'?val:parseFloat(val);
+          const isNum=!isNaN(nv);
+          const isYY=yeyang_set.has(c);
+          const isMI=mulip_set.has(c);
+          const isMgd=managedRows.has(r);
+
+          if(r>=2){
+            /* ① 입잔 양수 */
+            if(c===9&&isNum&&nv>0){
+              cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFB7F7CA'}};
+              cell.font={color:{argb:'FF15803D'},bold:true};
+              grnCnt++; rowHasGrn=true;
+            }
+            /* ② 투입후재고 음수 — 연한 빨강 */
+            else if(c===5&&isNum&&nv<0){
+              cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFECACA'}};
+              cell.font={color:{argb:'FFB91C1C'},bold:true};
+              negCnt++; rowHasNeg=true;
+            }
+            /* ③ 음수 — 최우선 */
+            else if(isNum&&nv<0){
+              cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE53E3E'}};
+              cell.font={color:{argb:'FFFFFFFF'},bold:true};
+              negCnt++; rowHasNeg=true;
+            }
+            /* ④ 물입예 양수 — 진한 강조 */
+            else if(isMI&&isNum&&nv>0){
+              cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF4ADE80'}};
+              cell.font={color:{argb:'FF14532D'},bold:true};
+            }
+            /* ⑤ 예량 열 */
+            else if(isYY&&isNum){
+              cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE0F2FE'}};
+            }
+            /* ⑥ 관리 품목 행 */
+            else if(isMgd){
+              cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEFF6FF'}};
+              if(c===1)cell.font={color:{argb:'FF1D4ED8'},bold:true};
+            }
+          }
+        }
+        // 행 메타 저장 (데이터 행만)
+        if(r>=2&&r<=lastR){
+          const av=gcv(ws,r,0);
+          if(av!==null&&av!==''){
+            rowMeta.push({
+              xr:r,
+              gubun:String(gcv(ws,r,4)||''),
+              code:String(gcv(ws,r,1)||'').toUpperCase(),
+              name:String(gcv(ws,r,3)||'').toUpperCase(),
+              hasNeg:rowHasNeg,
+              hasGrn:rowHasGrn,
+              isManaged:managedRows.has(r)
+            });
+          }
+        }
+      }
+
+      /* 열 너비 / 행 높이 / 병합 복원 */
+      if(ws['!cols']){
+        ws['!cols'].forEach((c,i)=>{
+          if(!c)return;
+          if(c.wch) newWs.getColumn(i+1).width=c.wch;
+          else if(c.wpx) newWs.getColumn(i+1).width=c.wpx/7;
+        });
+      }
+      if(ws['!rows']){
+        ws['!rows'].forEach((rinfo,i)=>{
+          if(!rinfo)return;
+          if(rinfo.hpx) newWs.getRow(i+1).height=rinfo.hpx*0.75;
+          else if(rinfo.hpt) newWs.getRow(i+1).height=rinfo.hpt;
+        });
+      }
+      if(ws['!merges']){
+        ws['!merges'].forEach(m=>{
+          if(m.s.r===m.e.r&&m.s.c===m.e.c)return;
+          newWs.mergeCells(m.s.r+1,m.s.c+1,m.e.r+1,m.e.c+1);
+        });
+      }
+
+      outWb=newWb;
+
+      renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,ncols);
+      syncTopBar();
+      initResizer();
+      updateFooterSums();
+      // 렌더 직후 브라우저 레이아웃 확정 후 left 계산
+      requestAnimationFrame(()=>{ updateStickyLeft(); });
+
+      /* 필터 드롭다운 채우기 */
+      buildGubunFilter(ws,lastR);
+
+      /* 통계 */
+      showStats(negCnt,grnCnt,bluCnt,lastR-1);
+      toast(`변환 완료 — 음수 ${negCnt}개 / 입잔 양수 ${grnCnt}개 / 관리 품목 ${bluCnt}행`,'success');
+      document.getElementById('btn-dl').className='btn-dl show';
+      document.getElementById('filter-bar').className='filter-bar show';
+
+      /* 메모 표시 복원 + 세션 캐시 저장 */
+      applyMemoIndicators();
+      saveSession();
+
+    }catch(err){
+      toast('오류: '+err.message,'error');
+      console.error(err);
+    }
+}
+
+/* ── 테이블 렌더 ── */
+function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,ncols){
+  const CW=['36px','120px','52px','180px','70px','62px','62px','62px','62px','62px'];
+  const DW=['58px','60px','52px','68px','46px'];
+  const FH=['번호','품목코드','색상','단품명칭','재고구분','투입후재고','현재고','비축재고','출잔','입잔'];
+  const SN=['출예','물입예','계획','예량','기타'];
+
+  // 날짜 그룹 뒤에 남는 꼬리 통계 열(예: (기간)최초 부족예상일~용도구분) — 계산 없이 원본 그대로 표시
+  const tailStart = dateGroups.length ? dateGroups[dateGroups.length-1].col+5 : 10;
+  const tailCols=[];
+  for(let c=tailStart;c<ncols;c++){
+    const h1=String(gcv(ws,0,c)||'').trim();
+    const h2=String(gcv(ws,1,c)||'').trim();
+    tailCols.push({col:c,label:(h1||h2||('열'+(c+1))).replace(/\n/g,'<br>')});
+  }
+
+  let h='<table id="main-table"><colgroup>';
+  for(let c=0;c<10;c++) h+=`<col id="col-${c}" style="width:${CW[c]}">`;
+  dateGroups.forEach(()=>{ for(let j=0;j<5;j++) h+=`<col style="width:${DW[j]}">` });
+  tailCols.forEach(()=>{ h+='<col style="width:78px">'; });
+  h+='</colgroup><thead><tr>';
+
+  for(let c=0;c<10;c++){
+    const sc=`fixed sc${c}`;
+    // D열(c===3)에만 리사이즈 핸들 삽입
+    const inner = c===3
+      ? `${FH[c]}<span class="resizer" id="resizer-3"></span>`
+      : FH[c];
+    h+=`<th rowspan="2" class="${sc}" style="padding:4px 5px" data-ci="${c}">${inner}</th>`;
+  }
+  dateGroups.forEach((g,i)=>{
+    const isWknd = isWeekend(g.label);
+    const wkndCls = isWknd ? ' wknd' : '';
+    h+=`<th colspan="5" class="dh ${i%2===0?'odd':'even'}${wkndCls}" style="padding:4px 5px">${g.label}</th>`;
+  });
+  tailCols.forEach((t,i)=>{
+    const ci=10+dateGroups.length*5+i;
+    h+=`<th rowspan="2" class="fixed" style="padding:4px 5px;font-size:11px" data-ci="${ci}">${t.label}</th>`;
+  });
+  h+='</tr><tr>';
+  dateGroups.forEach((g,i)=>{
+    const isWknd = isWeekend(g.label);
+    SN.forEach((_,j)=>{ const ci=10+i*5+j; h+=`<th class="s${j} fx2${isWknd?' wknd':''}" data-ci="${ci}">${SN[j]}</th>`; });
+  });
+  h+='</tr></thead><tbody>';
+
+  for(let r=2;r<=lastR;r++){
+    const av=gcv(ws,r,0); if(av===null||av==='')continue;
+    const isMgd=managedRows.has(r);
+    h+=`<tr data-xr="${r}"${isMgd?' class="managed"':''}>`;
+
+    for(let c=0;c<10;c++){
+      let val=gcv(ws,r,c); if(val===null)val='';
+      const nv=typeof val==='number'?val:parseFloat(val);
+      const isNum=val!==''&&!isNaN(nv);
+      let cls=[`sc${c}`];
+      if(c===1)cls.push('col-code');
+      const forceStr = (c===2); // 색상 열은 항상 문자열
+      if(isNum&&!forceStr)cls.push('num');
+      if(c===9&&isNum&&nv>0)cls.push('grn');
+      else if(c===5&&isNum&&nv<0)cls.push('neg-light');
+      else if(isNum&&!forceStr&&nv<0)cls.push('neg');
+      const inlineStyle = '';
+      h+=`<td class="${cls.join(' ')}"${inlineStyle} data-col="${c}">${fmt(forceStr?val:isNum?nv:val)}</td>`;
+    }
+
+    dateGroups.forEach(g=>{
+      const isWknd = isWeekend(g.label);
+      for(let j=0;j<5;j++){
+        const c=g.col+j, isYY=(j===3);
+        let val=(isYY&&ym[r]&&ym[r][c]!==undefined)?ym[r][c]:gcv(ws,r,c);
+        if(typeof val==='number'&&val===Math.floor(val))val=Math.floor(val);
+        if(val===null)val='';
+        const nv=typeof val==='number'?val:parseFloat(val);
+        const isNum=val!==''&&!isNaN(nv);
+        const isNeg=isNum&&nv<0;
+        const isMI=mulip_set.has(c);
+        let cls=[];
+        if(isNum)cls.push('num');
+        if(isWknd)cls.push('wknd');
+        if(isYY&&!isNeg)cls.push('yy');
+        if(isNum&&nv>0&&c===8)cls.push('grn');
+        else if(isMI&&isNum&&nv>0)cls.push('mip');
+        else if(isNeg)cls.push('neg');
+        h+=`<td class="${cls.join(' ')}" data-col="${c}">${fmt(isNum?nv:val)}</td>`;
+      }
+    });
+
+    tailCols.forEach(t=>{
+      let val=gcv(ws,r,t.col); if(val===null)val='';
+      if(typeof val==='number'&&val===Math.floor(val))val=Math.floor(val);
+      const nv=typeof val==='number'?val:parseFloat(val);
+      const isNum=val!==''&&!isNaN(nv);
+      let cls=[];
+      if(isNum)cls.push('num');
+      if(isNum&&nv<0)cls.push('neg');
+      h+=`<td class="${cls.join(' ')}" data-col="${t.col}">${fmt(isNum?nv:val)}</td>`;
+    });
+
+    h+='</tr>';
+  }
+  h+='</tbody><tfoot><tr id="footer-sum">';
+  for(let c=0;c<10;c++) h+=`<td class="sc${c}"></td>`;
+  dateGroups.forEach(()=>{ for(let j=0;j<5;j++) h+='<td></td>'; });
+  tailCols.forEach(()=>{ h+='<td></td>'; });
+  h+='</tr></tfoot></table>';
+  document.getElementById('tbl-area').innerHTML=h;
+}
+
+/* ── 열별 음수 필터 (헤더 클릭) ── */
+/* 물입예(SN[1]) 열은 부호 무관, 0이 아닌 값만 필터 */
+function isMulipCol(ci){ return ci>=10 && (ci-10)%5===1; }
+let activeNegCol=null;
+function toggleColNegFilter(ci){
+  activeNegCol = (activeNegCol===ci) ? null : ci;
+  document.querySelectorAll('th[data-ci]').forEach(th=>th.classList.remove('col-filter-active'));
+  if(activeNegCol!==null){
+    document.querySelectorAll(`th[data-ci="${activeNegCol}"]`).forEach(th=>th.classList.add('col-filter-active'));
+  }
+  applyFilter();
+}
+
+/* ── 표시 중인 행 기준 열별 합계 ── */
+function updateFooterSums(){
+  const tbl=document.getElementById('main-table');
+  const footRow=document.getElementById('footer-sum');
+  if(!tbl||!footRow)return;
+  const rows=[...tbl.querySelectorAll('tbody tr')].filter(tr=>!tr.classList.contains('hidden-row'));
+  const ncols=footRow.children.length;
+  for(let ci=0;ci<ncols;ci++){
+    const cell=footRow.children[ci];
+    if(ci===0){ cell.textContent='합계'; continue; }
+    if(ci>=1&&ci<=4){ cell.textContent=''; continue; }
+    let sum=0;
+    rows.forEach(tr=>{
+      const td=tr.children[ci];
+      if(!td)return;
+      const txt=td.textContent.replace(/,/g,'').trim();
+      if(txt==='')return;
+      const n=parseFloat(txt);
+      if(!isNaN(n))sum+=n;
+    });
+    cell.textContent=sum.toLocaleString();
+  }
+}
+
+/* ── 재고구분 드롭다운 ── */
+function buildGubunFilter(ws,lastR){
+  const vals=new Set();
+  for(let r=2;r<=lastR;r++){
+    const v=String(gcv(ws,r,4)||'').trim();
+    if(v)vals.add(v);
+  }
+  const sel=document.getElementById('f-gubun');
+  sel.innerHTML='<option value="">전체</option>';
+  [...vals].sort().forEach(v=>{ sel.innerHTML+=`<option value="${v}">${v}</option>`; });
+}
+
+/* ── 필터 적용 ── */
+function applyFilter(){
+  const gubun=document.getElementById('f-gubun').value;
+  const code=document.getElementById('f-code').value.trim().toUpperCase();
+  const {neg,grn,blu}=activeFilters;
+
+  const rows=document.querySelectorAll('tbody tr');
+  let visible=0;
+
+  rows.forEach(tr=>{
+    const xr=parseInt(tr.getAttribute('data-xr'));
+    const meta=rowMeta.find(m=>m.xr===xr);
+    if(!meta){tr.classList.add('hidden-row');return;}
+
+    let show=true;
+    if(gubun&&meta.gubun!==gubun)show=false;
+    if(code&&!meta.code.includes(code)&&!meta.name.includes(code))show=false;
+    if(neg&&!meta.hasNeg)show=false;
+    if(grn&&!meta.hasGrn)show=false;
+    if(blu&&!meta.isManaged)show=false;
+    if(activeNegCol!==null){
+      const td=tr.children[activeNegCol];
+      if(!td){ show=false; }
+      else if(isMulipCol(activeNegCol)){
+        const n=parseFloat(td.textContent.replace(/,/g,'').trim());
+        if(isNaN(n)||n===0)show=false;
+      }
+      else if(activeNegCol===9){
+        if(!td.classList.contains('grn'))show=false;
+      }
+      else if(!(td.classList.contains('neg')||td.classList.contains('neg-light'))){
+        show=false;
+      }
+    }
+
+    tr.classList.toggle('hidden-row',!show);
+    if(show)visible++;
+  });
+
+  const total=rows.length;
+  document.getElementById('f-result').textContent=
+    (visible<total)?`${total}행 중 ${visible}행 표시`:'';
+  updateFooterSums();
+}
+
+function toggleFilter(key){
+  activeFilters[key]=!activeFilters[key];
+  // 토글 버튼 스타일
+  const cls={neg:'on',grn:'on-grn',blu:'on-blu'};
+  const btn=document.getElementById('t-'+key);
+  btn.className='toggle-btn'+(activeFilters[key]?' '+cls[key]:'');
+  applyFilter();
+}
+function resetFilter(){
+  activeFilters={neg:false,grn:false,blu:false};
+  activeNegCol=null;
+  document.querySelectorAll('th[data-ci]').forEach(th=>th.classList.remove('col-filter-active'));
+  document.getElementById('f-gubun').value='';
+  document.getElementById('f-code').value='';
+  ['neg','grn','blu'].forEach(k=>{
+    document.getElementById('t-'+k).className='toggle-btn';
+  });
+  document.querySelectorAll('tbody tr').forEach(tr=>tr.classList.remove('hidden-row'));
+  document.getElementById('f-result').textContent='';
+  updateFooterSums();
+}
+
+function download(){
+  if(!outWb)return;
+  outWb.xlsx.writeBuffer().then(buf=>{
+    const blob=new Blob([buf],{type:'application/octet-stream'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=outName;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }).catch(err=>{
+    toast('다운로드 오류: '+err.message,'error');
+    console.error(err);
+  });
+}
+function showStats(neg,grn,blu,rows){
+  [['sc-neg','v-neg',neg],['sc-grn','v-grn',grn],['sc-blu','v-blu',blu],['sc-row','v-row',rows]].forEach(([s,v,n])=>{
+    document.getElementById(v).textContent=n.toLocaleString();
+    document.getElementById(s).style.display='flex';
+  });
+}
+function gcv(ws,r,c){const cell=ws[XLSX.utils.encode_cell({r,c})];return cell?cell.v:null;}
+function pn(v){if(v===null||v===undefined||v==='')return 0;const n=parseFloat(v);return isNaN(n)?0:n;}
+function fmt(v){if(v===''||v===null||v===undefined)return '';if(typeof v==='number')return v.toLocaleString();return String(v);}
+function isWeekend(label){
+  // label 예: "2026-06-14" 또는 숫자(엑셀 날짜 시리얼)
+  if(!label)return false;
+  const s=String(label).trim();
+  // YYYY-MM-DD 형식
+  const m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m){
+    const d=new Date(+m[1],+m[2]-1,+m[3]);
+    const day=d.getDay(); // 0=일,6=토
+    return day===0||day===6;
+  }
+  // 엑셀 숫자 시리얼 (1900-01-01 기준)
+  const n=parseFloat(s);
+  if(!isNaN(n)){
+    const d=new Date(Math.round((n-25569)*86400*1000));
+    const day=d.getDay();
+    return day===0||day===6;
+  }
+  return false;
+}
+
+/* ── 고정열 sticky left 동적 계산 ── */
+function updateStickyLeft(){
+  const tbl=document.getElementById('main-table');
+  if(!tbl)return;
+  // colgroup col 요소에서 실제 너비 읽기
+  const cols=tbl.querySelectorAll('colgroup col');
+  const widths=[];
+  for(let i=0;i<10;i++) widths.push(cols[i]?cols[i].offsetWidth||parseInt(cols[i].style.width)||0:0);
+
+  let left=0;
+  for(let c=0;c<10;c++){
+    const cells=tbl.querySelectorAll(`.sc${c}`);
+    cells.forEach(el=>{ el.style.left=left+'px'; });
+    left+=widths[c];
+  }
+}
+
+/* ── 단품명칭(D열) 드래그 리사이즈 ── */
+function initResizer(){
+  const resizer=document.getElementById('resizer-3');
+  const col=document.getElementById('col-3');
+  if(!resizer||!col)return;
+
+  let startX=0, startW=0;
+
+  resizer.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    startX=e.clientX;
+    startW=col.offsetWidth||180;
+    resizer.classList.add('dragging');
+
+    function onMove(e){
+      const newW=Math.max(0, startW+(e.clientX-startX));
+      col.style.width=newW+'px';
+      col.style.minWidth='0px';
+      col.style.maxWidth=newW+'px';
+      const th=resizer.closest('th');
+      if(th){ th.style.width=newW+'px'; th.style.minWidth='0px'; th.style.maxWidth=newW+'px'; }
+      updateStickyLeft();
+      syncTopBar();
+    }
+    function onUp(){
+      resizer.classList.remove('dragging');
+      document.removeEventListener('mousemove',onMove);
+      document.removeEventListener('mouseup',onUp);
+    }
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
+  });
+}
+/* ── 헤더 클릭 → 해당 열 음수행만 보기 ── */
+document.getElementById('tbl-area').addEventListener('click', e => {
+  if (e.target.classList.contains('resizer')) return;
+  const th = e.target.closest('th[data-ci]');
+  if (!th) return;
+  toggleColNegFilter(parseInt(th.getAttribute('data-ci')));
+});
+
+/* ── 품목코드·단품명칭 클릭 → 클립보드 복사 ── */
+document.getElementById('tbl-area').addEventListener('click', e => {
+  const td = e.target.closest('td');
+  if (!td) return;
+  const isCopyTarget = td.classList.contains('col-code') || td.classList.contains('sc3');
+  if (!isCopyTarget) return;
+
+  const text = td.textContent.trim();
+  if (!text) return;
+
+  navigator.clipboard.writeText(text).then(() => {
+    /* 복사 완료 시각적 피드백 */
+    const prev = td.style.cssText;
+    td.style.outline = '2px solid #3b82f6';
+    td.style.outlineOffset = '-2px';
+
+    /* 미니 툴팁 */
+    const tip = document.createElement('div');
+    tip.textContent = '복사됨!';
+    tip.style.cssText = [
+      'position:fixed','z-index:9999','pointer-events:none',
+      'background:#1e40af','color:#fff','font-size:11px','font-weight:600',
+      'padding:3px 8px','border-radius:5px','box-shadow:0 2px 6px rgba(0,0,0,.25)',
+      'transition:opacity .3s'
+    ].join(';');
+    const rect = td.getBoundingClientRect();
+    tip.style.left = (rect.left + rect.width / 2 - 28) + 'px';
+    tip.style.top  = (rect.top - 28) + 'px';
+    document.body.appendChild(tip);
+
+    setTimeout(() => { tip.style.opacity = '0'; }, 600);
+    setTimeout(() => {
+      tip.remove();
+      td.style.cssText = prev;
+    }, 900);
+  }).catch(() => {
+    /* clipboard API 불가 시 폴백 */
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  });
+});
+
+/* ── 상단 횡스크롤 ↔ tbl-wrap 동기화 ── */
+const tblWrap=document.getElementById('tbl-area');
+const topBar =document.getElementById('tbl-scroll-top');
+const topInner=document.getElementById('tbl-scroll-inner');
+
+function syncTopBar(){
+  // 테이블 실제 너비를 더미 div 너비에 반영
+  const tbl=tblWrap.querySelector('table');
+  if(tbl) topInner.style.width=tbl.scrollWidth+'px';
+}
+
+let scrollingFrom='';
+tblWrap.addEventListener('scroll',()=>{
+  if(scrollingFrom==='top')return;
+  scrollingFrom='wrap';
+  topBar.scrollLeft=tblWrap.scrollLeft;
+  scrollingFrom='';
+});
+topBar.addEventListener('scroll',()=>{
+  if(scrollingFrom==='wrap')return;
+  scrollingFrom='top';
+  tblWrap.scrollLeft=topBar.scrollLeft;
+  scrollingFrom='';
+});
+
+// 테이블 렌더 후 상단 스크롤 너비 갱신은 run() 내 syncTopBar() 호출로 처리
+
+/* ── 키보드 화살표 → 횡스크롤 우선 ── */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  // 텍스트 입력 중이면 무시
+  const tag = document.activeElement ? document.activeElement.tagName : '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  e.preventDefault();
+  const step = e.shiftKey ? 200 : 60;
+  const delta = e.key === 'ArrowRight' ? step : -step;
+  tblWrap.scrollLeft += delta;
+  topBar.scrollLeft = tblWrap.scrollLeft;
+});
+
+/* ══════════════════ 셀 메모 (엑셀 코멘트 스타일) ══════════════════ */
+function memoKey(td){
+  const tr=td.closest('tr');
+  return tr.getAttribute('data-xr')+':'+td.getAttribute('data-col');
+}
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+/* 렌더링된 표에 저장된 memos를 다시 반영 (has-memo 표시 갱신) */
+function applyMemoIndicators(){
+  document.querySelectorAll('#tbl-area td.has-memo').forEach(td=>td.classList.remove('has-memo'));
+  Object.keys(memos).forEach(key=>{
+    const idx=key.indexOf(':');
+    const xr=key.slice(0,idx), col=key.slice(idx+1);
+    const td=document.querySelector(`#tbl-area tr[data-xr="${xr}"] td[data-col="${col}"]`);
+    if(td) td.classList.add('has-memo');
+  });
+}
+
+let currentMemoTd=null;
+function openMemoEditor(td,x,y){
+  closeMemoEditor();
+  currentMemoTd=td;
+  const key=memoKey(td);
+  const editor=document.createElement('div');
+  editor.className='memo-editor';
+  editor.innerHTML=
+    '<textarea placeholder="메모를 입력하세요…">'+escapeHtml(memos[key]||'')+'</textarea>'+
+    '<div class="memo-btns">'+
+      '<button type="button" data-act="del" class="danger">삭제</button>'+
+      '<button type="button" data-act="cancel">취소</button>'+
+      '<button type="button" data-act="save" class="primary">저장</button>'+
+    '</div>';
+  document.body.appendChild(editor);
+
+  const ew=editor.offsetWidth||230, eh=editor.offsetHeight||150;
+  let left=x, top=y;
+  if(left+ew>window.innerWidth-8) left=Math.max(8,window.innerWidth-ew-8);
+  if(top+eh>window.innerHeight-8) top=Math.max(8,window.innerHeight-eh-8);
+  editor.style.left=left+'px';
+  editor.style.top=top+'px';
+
+  const ta=editor.querySelector('textarea');
+  ta.focus(); ta.select();
+
+  function commit(){
+    const text=ta.value.trim();
+    if(text){ memos[key]=text; td.classList.add('has-memo'); }
+    else { delete memos[key]; td.classList.remove('has-memo'); }
+    saveSession();
+  }
+  editor.addEventListener('click', e=>{
+    const act=e.target.getAttribute('data-act');
+    if(!act)return;
+    if(act==='save') commit();
+    else if(act==='del'){ delete memos[key]; td.classList.remove('has-memo'); saveSession(); }
+    closeMemoEditor();
+  });
+  editor.addEventListener('keydown', e=>{
+    e.stopPropagation();
+    if(e.key==='Escape'){ closeMemoEditor(); }
+    else if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ commit(); closeMemoEditor(); }
+  });
+
+  setTimeout(()=>{ document.addEventListener('mousedown', onOutsideMemoClick, true); },0);
+}
+function onOutsideMemoClick(e){
+  const editor=document.querySelector('.memo-editor');
+  if(editor && !editor.contains(e.target)) closeMemoEditor();
+}
+function closeMemoEditor(){
+  const editor=document.querySelector('.memo-editor');
+  if(editor) editor.remove();
+  document.removeEventListener('mousedown', onOutsideMemoClick, true);
+  currentMemoTd=null;
+}
+
+let memoTooltipEl=null;
+function showMemoTooltip(td){
+  hideMemoTooltip();
+  const text=memos[memoKey(td)];
+  if(!text)return;
+  const tip=document.createElement('div');
+  tip.className='memo-tooltip';
+  tip.textContent=text;
+  document.body.appendChild(tip);
+  const rect=td.getBoundingClientRect();
+  let left=rect.right-4, top=rect.top-4;
+  const tw=tip.offsetWidth, th=tip.offsetHeight;
+  if(left+tw>window.innerWidth-8) left=Math.max(8,window.innerWidth-tw-8);
+  if(top+th>window.innerHeight-8) top=Math.max(8,window.innerHeight-th-8);
+  tip.style.left=left+'px';
+  tip.style.top=top+'px';
+  memoTooltipEl=tip;
+}
+function hideMemoTooltip(){
+  if(memoTooltipEl){ memoTooltipEl.remove(); memoTooltipEl=null; }
+}
+
+/* 우클릭 → 메모 입력 팝업 (데이터 셀만 대상 — data-col 보유) */
+document.getElementById('tbl-area').addEventListener('contextmenu', e => {
+  const td=e.target.closest('td[data-col]');
+  if(!td)return;
+  e.preventDefault();
+  openMemoEditor(td, e.clientX, e.clientY);
+});
+/* 메모가 달린 셀에 마우스 올리면 툴팁 표시 */
+document.getElementById('tbl-area').addEventListener('mouseover', e => {
+  const td=e.target.closest('td.has-memo');
+  if(!td)return;
+  showMemoTooltip(td);
+});
+document.getElementById('tbl-area').addEventListener('mouseout', e => {
+  const td=e.target.closest('td.has-memo');
+  if(!td)return;
+  hideMemoTooltip();
+});
+
+/* ══════════════════ 로컬 캐시 (IndexedDB, 4시간 보관) ══════════════════ */
+const CACHE_DB='grdConverterCache', CACHE_STORE='session', CACHE_KEY='current';
+const CACHE_TTL=4*60*60*1000; // 4시간
+
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(CACHE_DB,1);
+    req.onupgradeneeded=()=>{ req.result.createObjectStore(CACHE_STORE); };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function idbSet(key,val){
+  const db=await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(CACHE_STORE,'readwrite');
+    tx.objectStore(CACHE_STORE).put(val,key);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+async function idbGet(key){
+  const db=await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(CACHE_STORE,'readonly');
+    const req=tx.objectStore(CACHE_STORE).get(key);
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function idbDel(key){
+  const db=await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(CACHE_STORE,'readwrite');
+    tx.objectStore(CACHE_STORE).delete(key);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+
+async function saveSession(){
+  if(!lastXlsBuffer)return;
+  try{
+    await idbSet(CACHE_KEY,{
+      xlsBuffer:lastXlsBuffer, xlsName:lastXlsName,
+      outName, memos, savedAt:Date.now()
+    });
+  }catch(err){
+    console.warn('로컬 캐시 저장 실패:',err);
+  }
+}
+
+async function restoreSession(){
+  let cached;
+  try{ cached=await idbGet(CACHE_KEY); }
+  catch(err){ console.warn('로컬 캐시 읽기 실패:',err); return; }
+  if(!cached)return;
+  if(Date.now()-cached.savedAt>CACHE_TTL){ idbDel(CACHE_KEY).catch(()=>{}); return; }
+
+  lastXlsBuffer=cached.xlsBuffer;
+  lastXlsName=cached.xlsName;
+  outName=cached.outName||outName;
+  memos=cached.memos||{};
+
+  xlsFile=new File([lastXlsBuffer], lastXlsName, {type:'application/vnd.ms-excel'});
+  setLabel('lbl-xls','✓ '+lastXlsName+' (복원됨)',true);
+  updateCodeLabel();
+  document.getElementById('btn-run').disabled=false;
+
+  processData(new Uint8Array(lastXlsBuffer));
+  toast('이전 작업을 이어서 불러왔습니다 (메모 포함)','success');
+}
+restoreSession();
+
+/* ══════════════════ 전체 초기화 ══════════════════ */
+function clearAll(){
+  if(!confirm('업로드한 파일, 변환 결과, 메모를 모두 삭제합니다. 계속하시겠습니까?'))return;
+
+  closeMemoEditor();
+  hideMemoTooltip();
+
+  // 관리 품목 코드(codesSet)는 로컬에 영구 저장되는 별도 목록이므로 여기서 초기화하지 않는다.
+  xlsFile=null; outWb=null; rowMeta=[]; memos={};
+  lastXlsBuffer=null; lastXlsName='';
+  activeFilters={neg:false,grn:false,blu:false}; activeNegCol=null;
+
+  document.getElementById('inp-xls').value='';
+  document.getElementById('inp-txt').value='';
+  setLabel('lbl-xls','grd_list00_*.xls',false);
+  updateCodeLabel();
+  document.getElementById('btn-run').disabled=true;
+  document.getElementById('btn-dl').className='btn-dl';
+  document.getElementById('filter-bar').className='filter-bar';
+  document.getElementById('tbl-area').innerHTML=emptyHTML;
+  document.querySelectorAll('.info-bar .sc').forEach(el=>{ el.style.display='none'; });
+  document.getElementById('toast').className='toast';
+
+  idbDel(CACHE_KEY).catch(()=>{});
+  toast('전체 초기화 완료','info');
+}
+
+</script>
+</body>
+</html>
