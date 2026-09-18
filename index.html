@@ -165,6 +165,15 @@ tbody tr.managed .sc9{ background:#eff6ff!important }
 .sc9{border-right:2px solid #94a3b8!important}
 thead .sc9{border-right:2px solid #475569!important}
 
+/* 포장 완료 수량 입력 열 */
+td.pojang-cell{background:#fffbeb;padding:2px 4px}
+.pojang-input{
+  width:100%;box-sizing:border-box;text-align:right;
+  border:1px solid #cbd5e1;border-radius:4px;padding:2px 4px;
+  font-size:12px;font-family:inherit;background:#fff;
+}
+.pojang-input:focus{outline:2px solid #3b82f6;outline-offset:-1px}
+
 /* 단품명칭(D열=sc3) 드래그 리사이즈 */
 th.sc3{position:sticky;overflow:hidden;user-select:none;max-width:9999px}
 th.sc3 .resizer{
@@ -207,6 +216,9 @@ tr.managed td.grn.yy,tr.managed td.grn.wknd.yy{background:#bbf7d0!important;colo
 /* 물입예 양수 — 진한 강조 */
 td.mip,td.mip.wknd,
 tr.managed td.mip,tr.managed td.mip.wknd{background:#4ade80!important;color:#14532d!important;font-weight:700}
+/* 포장 완료 수량으로 소진(0)된 입잔/물입예 셀 */
+td.pj-done,td.pj-done.wknd,
+tr.managed td.pj-done,tr.managed td.pj-done.wknd{background:#e5e7eb!important;color:#6b7280!important;font-weight:600}
 
 td.num{text-align:right}
 tr.hidden-row{display:none}
@@ -451,6 +463,8 @@ let activeFilters={neg:false,grn:false,blu:false};
 let rowMeta=[];  // [{tr, gubun, code, hasNeg, hasGrn, isManaged}]
 // 셀 메모: key = "원본행:원본열" → 텍스트
 let memos={};
+// 포장 완료 수량: key = 원본행(r) → 숫자. 새로고침 시 사라짐(로컬 저장 대상 아님)
+let pojangMap={};
 // 로컬 캐시(복원)용 원본 데이터 보관
 let lastXlsBuffer=null, lastXlsName='';
 // 파일 미선택 상태의 결과 영역 초기 HTML (전체 초기화 시 복원용)
@@ -488,6 +502,7 @@ document.getElementById('inp-xls').addEventListener('change',e=>{
   xlsFile=e.target.files[0];
   outName=xlsFile.name.replace(/\.xls$/i,'')+'_변환.xlsx';
   memos={}; // 새 재고 파일 선택 시 이전 파일에 달린 메모는 의미가 없으므로 초기화
+  pojangMap={}; // 새 재고 파일 선택 시 이전 파일의 포장 완료 수량도 초기화
   setLabel('lbl-xls','✓ '+xlsFile.name,true);
   document.getElementById('btn-run').disabled=false;
 });
@@ -636,7 +651,7 @@ function processData(data){
       const ym={};
       for(let r=2;r<nrows;r++){
         const av=gcv(ws,r,0); if(!av&&av!==0)continue;
-        const hyunjae=pn(gcv(ws,r,6)), chuljan=pn(gcv(ws,r,8));
+        const hyunjae=pn(gcv(ws,r,6))+pn(pojangMap[r]), chuljan=pn(gcv(ws,r,8));
         let prev=hyunjae-chuljan;
         ym[r]={};
         for(let i=0;i<chulye_cols.length;i++){
@@ -763,6 +778,7 @@ function processData(data){
       outWb=newWb;
 
       renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,ncols);
+      bindPojangInputs(ws,dateGroups,ym);
       syncTopBar();
       initResizer();
       updateFooterSums();
@@ -806,6 +822,7 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
 
   let h='<table id="main-table"><colgroup>';
   for(let c=0;c<10;c++) h+=`<col id="col-${c}" style="width:${CW[c]}">`;
+  h+='<col style="width:92px">'; // 포장 완료 수량
   dateGroups.forEach(()=>{ for(let j=0;j<5;j++) h+=`<col style="width:${DW[j]}">` });
   tailCols.forEach(()=>{ h+='<col style="width:78px">'; });
   h+='</colgroup><thead><tr>';
@@ -818,6 +835,7 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
       : FH[c];
     h+=`<th rowspan="2" class="${sc}" style="padding:4px 5px" data-ci="${c}">${inner}</th>`;
   }
+  h+='<th rowspan="2" class="fixed" style="padding:4px 5px;font-size:11px">포장 완료 수량</th>';
   dateGroups.forEach((g,i)=>{
     const isWknd = isWeekend(g.label);
     const wkndCls = isWknd ? ' wknd' : '';
@@ -852,6 +870,10 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
       else if(isNum&&!forceStr&&nv<0)cls.push('neg');
       const inlineStyle = '';
       h+=`<td class="${cls.join(' ')}"${inlineStyle} data-col="${c}">${fmt(forceStr?val:isNum?nv:val)}</td>`;
+    }
+
+    { const pj=pojangMap[r]!==undefined?pojangMap[r]:'';
+      h+=`<td class="pojang-cell" data-col="pojang"><input type="number" class="pojang-input" data-xr="${r}" value="${pj}" placeholder="0"></td>`;
     }
 
     dateGroups.forEach(g=>{
@@ -891,10 +913,77 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
   }
   h+='</tbody><tfoot><tr id="footer-sum">';
   for(let c=0;c<10;c++) h+=`<td class="sc${c}"></td>`;
+  h+='<td></td>'; // 포장 완료 수량
   dateGroups.forEach(()=>{ for(let j=0;j<5;j++) h+='<td></td>'; });
   tailCols.forEach(()=>{ h+='<td></td>'; });
   h+='</tr></tfoot></table>';
   document.getElementById('tbl-area').innerHTML=h;
+}
+
+/* ── 포장 완료 수량: 입력 시 해당 행의 날짜별 예상재고(예량)만 재계산 ── */
+function bindPojangInputs(ws,dateGroups,ym){
+  document.querySelectorAll('#tbl-area .pojang-input').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      const r=parseInt(inp.getAttribute('data-xr'));
+      const v=pn(inp.value);
+      if(v)pojangMap[r]=v; else delete pojangMap[r];
+      applyPojangConsumption(ws,dateGroups,r);
+      recalcForecastRow(ws,dateGroups,ym,r);
+    });
+  });
+  // 관리 품목 코드 변경 등으로 표가 재변환돼도 기존 입력값의 차감 효과를 유지
+  Object.keys(pojangMap).forEach(rKey=>applyPojangConsumption(ws,dateGroups,parseInt(rKey)));
+}
+
+/* 포장 완료 수량으로 입잔(J열)을 우선 차감하고, 남으면 물입예 열을 날짜가
+   가까운 순서(왼쪽부터)대로 차감해 화면에 표시한다. 원본 값(ws) 기준으로
+   매번 처음부터 다시 계산하므로 입력값을 바꾸거나 지워도 정확히 되돌아간다. */
+function applyPojangConsumption(ws,dateGroups,r){
+  const tr=document.querySelector(`#tbl-area tr[data-xr="${r}"]`);
+  if(!tr)return;
+  let remaining=pn(pojangMap[r]);
+
+  function consumeCell(col,original,extraCls,posCls){
+    const consume=(remaining>0&&original>0)?Math.min(remaining,original):0;
+    const remainVal=original-consume;
+    remaining-=consume;
+    const td=tr.querySelector(`td[data-col="${col}"]`);
+    if(td){
+      const cls=['num',...extraCls];
+      if(remainVal>0)cls.push(posCls);
+      else if(remainVal<0)cls.push('neg');
+      if(original>0&&remainVal<=0)cls.push('pj-done');
+      td.className=cls.join(' ');
+      td.textContent=fmt(remainVal);
+    }
+  }
+
+  consumeCell(9,pn(gcv(ws,r,9)),['sc9'],'grn'); // 입잔(J열) 우선 차감
+  dateGroups.forEach(g=>{ // 이후 물입예 열을 날짜 가까운 순서대로 차감
+    const mCol=g.col+1;
+    consumeCell(mCol,pn(gcv(ws,r,mCol)),isWeekend(g.label)?['wknd']:[],'mip');
+  });
+}
+function recalcForecastRow(ws,dateGroups,ym,r){
+  const hyunjae=pn(gcv(ws,r,6))+pn(pojangMap[r]), chuljan=pn(gcv(ws,r,8));
+  let prev=hyunjae-chuljan;
+  if(!ym[r])ym[r]={};
+  const tr=document.querySelector(`#tbl-area tr[data-xr="${r}"]`);
+  dateGroups.forEach(g=>{
+    const yy=g.col+3;
+    const yval=prev-pn(gcv(ws,r,g.col));
+    ym[r][yy]=yval; prev=yval;
+    const td=tr&&tr.querySelector(`td[data-col="${yy}"]`);
+    if(!td)return;
+    const isNeg=yval<0;
+    const cls=['num'];
+    if(isWeekend(g.label))cls.push('wknd');
+    if(!isNeg)cls.push('yy');
+    if(isNeg)cls.push('neg');
+    td.className=cls.join(' ');
+    td.textContent=fmt(yval);
+  });
+  updateFooterSums();
 }
 
 /* ── 열별 음수 필터 (헤더 클릭) ── */
@@ -967,7 +1056,7 @@ function applyFilter(){
     if(grn&&!meta.hasGrn)show=false;
     if(blu&&!meta.isManaged)show=false;
     if(activeNegCol!==null){
-      const td=tr.children[activeNegCol];
+      const td=tr.querySelector(`td[data-col="${activeNegCol}"]`); // 포장 완료 수량 열 삽입으로 위치(children[]) 대신 data-col로 조회
       if(!td){ show=false; }
       else if(isMulipCol(activeNegCol)){
         const n=parseFloat(td.textContent.replace(/,/g,'').trim());
@@ -1403,7 +1492,7 @@ function clearAll(){
   hideMemoTooltip();
 
   // 관리 품목 코드(codesSet)는 로컬에 영구 저장되는 별도 목록이므로 여기서 초기화하지 않는다.
-  xlsFile=null; outWb=null; rowMeta=[]; memos={};
+  xlsFile=null; outWb=null; rowMeta=[]; memos={}; pojangMap={};
   lastXlsBuffer=null; lastXlsName='';
   activeFilters={neg:false,grn:false,blu:false}; activeNegCol=null;
 
