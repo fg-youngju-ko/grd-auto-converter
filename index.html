@@ -100,9 +100,9 @@ th,td{border:1px solid #e0e0da;padding:3px 5px;white-space:nowrap;vertical-align
 thead tr:first-child th   { position:sticky; top:0px;  z-index:4; }
 thead tr:nth-child(2) th  { position:sticky; top:27px; z-index:4; }
 
-/* ── 열 고정 (수평 sticky) — sc0~sc9 ── */
+/* ── 열 고정 (수평 sticky) — sc0~sc10(포장 완료 수량 포함) ── */
 /* left는 JS(updateStickyLeft)가 인라인으로 주입 */
-.sc0,.sc1,.sc2,.sc3,.sc4,.sc5,.sc6,.sc7,.sc8,.sc9{
+.sc0,.sc1,.sc2,.sc3,.sc4,.sc5,.sc6,.sc7,.sc8,.sc9,.sc10{
   position:sticky;
   z-index:5; /* 데이터 행 열고정: 일반 th보다 위 */
 }
@@ -111,7 +111,8 @@ thead tr:first-child .sc0,thead tr:first-child .sc1,
 thead tr:first-child .sc2,thead tr:first-child .sc3,
 thead tr:first-child .sc4,thead tr:first-child .sc5,
 thead tr:first-child .sc6,thead tr:first-child .sc7,
-thead tr:first-child .sc8,thead tr:first-child .sc9{ top:0px;  z-index:10; }
+thead tr:first-child .sc8,thead tr:first-child .sc9,
+thead tr:first-child .sc10{ top:0px;  z-index:10; }
 thead tr:nth-child(2) .sc0,
 thead tr:nth-child(2) .sc1{ top:27px; z-index:10; }
 
@@ -130,8 +131,8 @@ thead tr:nth-child(2) th.s3{background:#e0f2fe;color:#0369a1;font-weight:700} /*
 thead tr:nth-child(2) th.s4{background:#f8fafc;color:#475569}   /* 기타 */
 thead tr:nth-child(2) th.fx2{background:#263345;color:#94a3b8;font-size:10px}
 
-/* 고정열 — A~J 10열 모두 sticky, left는 JS가 동적으로 계산해 인라인 적용 */
-.sc0,.sc1,.sc2,.sc3,.sc4,.sc5,.sc6,.sc7,.sc8,.sc9{
+/* 고정열 — A~J 10열 + 포장 완료 수량(sc10) 모두 sticky, left는 JS가 동적으로 계산해 인라인 적용 */
+.sc0,.sc1,.sc2,.sc3,.sc4,.sc5,.sc6,.sc7,.sc8,.sc9,.sc10{
   position:sticky;z-index:3;
 }
 /* 배경색 직접 지정 (inherit은 투명 문제 발생) */
@@ -144,26 +145,29 @@ thead tr:first-child .sc5,
 thead tr:first-child .sc6,
 thead tr:first-child .sc7,
 thead tr:first-child .sc8,
-thead tr:first-child .sc9{ background:var(--hdr-fixed);color:var(--hdr-fixed-t) }
+thead tr:first-child .sc9,
+thead tr:first-child .sc10{ background:var(--hdr-fixed);color:var(--hdr-fixed-t) }
 thead tr:nth-child(2) .sc0,
 thead tr:nth-child(2) .sc1{ background:#263345;color:#94a3b8 }
 tbody tr:nth-child(odd)  .sc0,tbody tr:nth-child(odd)  .sc1,
 tbody tr:nth-child(odd)  .sc2,tbody tr:nth-child(odd)  .sc3,
 tbody tr:nth-child(odd)  .sc4,tbody tr:nth-child(odd)  .sc5,
 tbody tr:nth-child(odd)  .sc6,tbody tr:nth-child(odd)  .sc7,
-tbody tr:nth-child(odd)  .sc8,tbody tr:nth-child(odd)  .sc9{ background:#fff }
+tbody tr:nth-child(odd)  .sc8,tbody tr:nth-child(odd)  .sc9,
+tbody tr:nth-child(odd)  .sc10{ background:#fff }
 tbody tr:nth-child(even) .sc0,tbody tr:nth-child(even) .sc1,
 tbody tr:nth-child(even) .sc2,tbody tr:nth-child(even) .sc3,
 tbody tr:nth-child(even) .sc4,tbody tr:nth-child(even) .sc5,
 tbody tr:nth-child(even) .sc6,tbody tr:nth-child(even) .sc7,
-tbody tr:nth-child(even) .sc8,tbody tr:nth-child(even) .sc9{ background:#f8f8f7 }
+tbody tr:nth-child(even) .sc8,tbody tr:nth-child(even) .sc9,
+tbody tr:nth-child(even) .sc10{ background:#f8f8f7 }
 tbody tr.managed .sc0,tbody tr.managed .sc1,tbody tr.managed .sc2,
 tbody tr.managed .sc3,tbody tr.managed .sc4,tbody tr.managed .sc5,
 tbody tr.managed .sc6,tbody tr.managed .sc7,tbody tr.managed .sc8,
-tbody tr.managed .sc9{ background:#eff6ff!important }
-/* J열(sc9) 우측 경계선 */
-.sc9{border-right:2px solid #94a3b8!important}
-thead .sc9{border-right:2px solid #475569!important}
+tbody tr.managed .sc9,tbody tr.managed .sc10{ background:#eff6ff!important }
+/* 포장 완료 수량(sc10) 우측 경계선 — 이제 이 열이 틀고정 영역의 마지막 열 */
+.sc10{border-right:2px solid #94a3b8!important}
+thead .sc10{border-right:2px solid #475569!important}
 
 /* 포장 완료 수량 입력 열 */
 td.pojang-cell{background:#fffbeb;padding:2px 4px}
@@ -241,12 +245,12 @@ tfoot tr td{
 }
 tfoot tr td.sc0,tfoot tr td.sc1,tfoot tr td.sc2,tfoot tr td.sc3,
 tfoot tr td.sc4,tfoot tr td.sc5,tfoot tr td.sc6,tfoot tr td.sc7,
-tfoot tr td.sc8,tfoot tr td.sc9{z-index:12;background:#fff3cd}
+tfoot tr td.sc8,tfoot tr td.sc9,tfoot tr td.sc10{z-index:12;background:#fff3cd}
 tfoot tr td.sc0{text-align:left}
 
 /* ── 셀 메모 (엑셀 코멘트 스타일) ── */
 /* position은 기본 th,td{position:relative}가 담당 — 여기서 재지정하면
-   명시도(0,0,1,1)가 틀고정 열의 .sc0~.sc9{position:sticky}(0,0,1,0)보다 높아져
+   명시도(0,0,1,1)가 틀고정 열의 .sc0~.sc10{position:sticky}(0,0,1,0)보다 높아져
    틀고정이 풀리므로 절대 position을 다시 선언하지 않는다. */
 td.has-memo::after{
   content:'';position:absolute;top:0;left:0;
@@ -822,7 +826,7 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
 
   let h='<table id="main-table"><colgroup>';
   for(let c=0;c<10;c++) h+=`<col id="col-${c}" style="width:${CW[c]}">`;
-  h+='<col style="width:92px">'; // 포장 완료 수량
+  h+='<col id="col-10" style="width:92px">'; // 포장 완료 수량
   dateGroups.forEach(()=>{ for(let j=0;j<5;j++) h+=`<col style="width:${DW[j]}">` });
   tailCols.forEach(()=>{ h+='<col style="width:78px">'; });
   h+='</colgroup><thead><tr>';
@@ -835,7 +839,7 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
       : FH[c];
     h+=`<th rowspan="2" class="${sc}" style="padding:4px 5px" data-ci="${c}">${inner}</th>`;
   }
-  h+='<th rowspan="2" class="fixed" style="padding:4px 5px;font-size:11px">포장 완료 수량</th>';
+  h+='<th rowspan="2" class="fixed sc10" style="padding:4px 5px;font-size:11px">포장 완료 수량</th>';
   dateGroups.forEach((g,i)=>{
     const isWknd = isWeekend(g.label);
     const wkndCls = isWknd ? ' wknd' : '';
@@ -873,7 +877,7 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
     }
 
     { const pj=pojangMap[r]!==undefined?pojangMap[r]:'';
-      h+=`<td class="pojang-cell" data-col="pojang"><input type="number" class="pojang-input" data-xr="${r}" value="${pj}" placeholder="0"></td>`;
+      h+=`<td class="pojang-cell sc10" data-col="pojang"><input type="number" class="pojang-input" data-xr="${r}" value="${pj}" placeholder="0"></td>`;
     }
 
     dateGroups.forEach(g=>{
@@ -913,7 +917,7 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
   }
   h+='</tbody><tfoot><tr id="footer-sum">';
   for(let c=0;c<10;c++) h+=`<td class="sc${c}"></td>`;
-  h+='<td></td>'; // 포장 완료 수량
+  h+='<td class="sc10"></td>'; // 포장 완료 수량
   dateGroups.forEach(()=>{ for(let j=0;j<5;j++) h+='<td></td>'; });
   tailCols.forEach(()=>{ h+='<td></td>'; });
   h+='</tr></tfoot></table>';
@@ -1154,10 +1158,10 @@ function updateStickyLeft(){
   // colgroup col 요소에서 실제 너비 읽기
   const cols=tbl.querySelectorAll('colgroup col');
   const widths=[];
-  for(let i=0;i<10;i++) widths.push(cols[i]?cols[i].offsetWidth||parseInt(cols[i].style.width)||0:0);
+  for(let i=0;i<11;i++) widths.push(cols[i]?cols[i].offsetWidth||parseInt(cols[i].style.width)||0:0);
 
   let left=0;
-  for(let c=0;c<10;c++){
+  for(let c=0;c<11;c++){
     const cells=tbl.querySelectorAll(`.sc${c}`);
     cells.forEach(el=>{ el.style.left=left+'px'; });
     left+=widths[c];
