@@ -231,6 +231,14 @@ tr.hidden-row{display:none}
 thead th[data-ci]{cursor:pointer}
 thead th[data-ci]:hover{filter:brightness(1.12)}
 thead th[data-ci].col-filter-active{outline:2px solid #ef4444;outline-offset:-2px}
+thead th[data-pline]:hover{filter:brightness(1.12)}
+thead th[data-pline].col-filter-active{outline:2px solid #3b82f6;outline-offset:-2px}
+#pline-menu{position:fixed;z-index:1000;min-width:140px;max-height:320px;overflow:auto;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);padding:4px;font-size:12px}
+#pline-menu .pl-item{display:flex;justify-content:space-between;gap:12px;padding:6px 10px;border-radius:5px;cursor:pointer;white-space:nowrap}
+#pline-menu .pl-item:hover{background:var(--border)}
+#pline-menu .pl-item.on{background:#3b82f6;color:#fff}
+#pline-menu .pl-item span{color:var(--text3);font-size:11px}
+#pline-menu .pl-item.on span{color:#dbeafe}
 
 /* ── 행 hover 시 굵은 테두리 ── */
 tbody tr:hover td{box-shadow:inset 0 2px 0 0 #2563eb,inset 0 -2px 0 0 #2563eb}
@@ -845,8 +853,15 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
     const wkndCls = isWknd ? ' wknd' : '';
     h+=`<th colspan="5" class="dh ${i%2===0?'odd':'even'}${wkndCls}" style="padding:4px 5px">${g.label}</th>`;
   });
+  plineCol=null; activePline=null; closePlineMenu(); // 재변환 시 표가 새로 그려지므로 라인 필터 초기화
   tailCols.forEach((t,i)=>{
     const ci=10+dateGroups.length*5+i;
+    // 포장라인 열은 음수 필터 대신 라인 값 선택 필터
+    if(plineCol===null&&t.label.replace(/<br>|\s/g,'')==='포장라인'){
+      plineCol=t.col;
+      h+=`<th rowspan="2" class="fixed" style="padding:4px 5px;font-size:11px;cursor:pointer" data-pline="${t.col}" title="클릭해서 포장라인 필터">${t.label} ▾</th>`;
+      return;
+    }
     h+=`<th rowspan="2" class="fixed" style="padding:4px 5px;font-size:11px" data-ci="${ci}">${t.label}</th>`;
   });
   h+='</tr><tr>';
@@ -1003,6 +1018,52 @@ function toggleColNegFilter(ci){
   applyFilter();
 }
 
+/* ── 포장라인 필터 (헤더 클릭 → 라인 선택) ── */
+let plineCol=null, activePline=null;
+function plineVal(tr){
+  const td=tr.querySelector(`td[data-col="${plineCol}"]`);
+  return td?td.textContent.trim():'';
+}
+function closePlineMenu(){
+  const m=document.getElementById('pline-menu');
+  if(m)m.remove();
+  document.removeEventListener('mousedown',onPlineOutside,true);
+  document.removeEventListener('keydown',onPlineEsc,true);
+}
+function onPlineOutside(e){ if(!e.target.closest('#pline-menu')&&!e.target.closest('th[data-pline]'))closePlineMenu(); }
+function onPlineEsc(e){ if(e.key==='Escape')closePlineMenu(); }
+function openPlineMenu(th){
+  if(document.getElementById('pline-menu')){ closePlineMenu(); return; }
+  const counts=new Map();
+  document.querySelectorAll('#tbl-area tbody tr').forEach(tr=>{
+    const v=plineVal(tr); counts.set(v,(counts.get(v)||0)+1);
+  });
+  const vals=[...counts.keys()].sort((a,b)=>a===''?1:b===''?-1:a.localeCompare(b,'ko',{numeric:true}));
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  let h=`<div class="pl-item${activePline===null?' on':''}" data-v="">전체</div>`;
+  vals.forEach(v=>{
+    h+=`<div class="pl-item${activePline===v?' on':''}" data-v="${esc(v)}" data-set="1">${v===''?'(비어있음)':esc(v)}<span>${counts.get(v)}</span></div>`;
+  });
+  const m=document.createElement('div');
+  m.id='pline-menu'; m.innerHTML=h;
+  document.body.appendChild(m);
+  const r=th.getBoundingClientRect();
+  m.style.top=(r.bottom+2)+'px';
+  m.style.left=Math.max(4,Math.min(r.left,window.innerWidth-m.offsetWidth-4))+'px';
+  m.addEventListener('click',e=>{
+    const it=e.target.closest('.pl-item'); if(!it)return;
+    setPlineFilter(it.hasAttribute('data-set')?it.getAttribute('data-v'):null);
+    closePlineMenu();
+  });
+  document.addEventListener('mousedown',onPlineOutside,true);
+  document.addEventListener('keydown',onPlineEsc,true);
+}
+function setPlineFilter(v){
+  activePline=v;
+  document.querySelectorAll('th[data-pline]').forEach(th=>th.classList.toggle('col-filter-active',v!==null));
+  applyFilter();
+}
+
 /* ── 표시 중인 행 기준 열별 합계 ── */
 function updateFooterSums(){
   const tbl=document.getElementById('main-table');
@@ -1059,6 +1120,7 @@ function applyFilter(){
     if(neg&&!meta.hasNeg)show=false;
     if(grn&&!meta.hasGrn)show=false;
     if(blu&&!meta.isManaged)show=false;
+    if(activePline!==null&&plineCol!==null&&plineVal(tr)!==activePline)show=false;
     if(activeNegCol!==null){
       const td=tr.querySelector(`td[data-col="${activeNegCol}"]`); // 포장 완료 수량 열 삽입으로 위치(children[]) 대신 data-col로 조회
       if(!td){ show=false; }
@@ -1095,7 +1157,8 @@ function toggleFilter(key){
 function resetFilter(){
   activeFilters={neg:false,grn:false,blu:false};
   activeNegCol=null;
-  document.querySelectorAll('th[data-ci]').forEach(th=>th.classList.remove('col-filter-active'));
+  activePline=null; closePlineMenu();
+  document.querySelectorAll('th[data-ci],th[data-pline]').forEach(th=>th.classList.remove('col-filter-active'));
   document.getElementById('f-gubun').value='';
   document.getElementById('f-code').value='';
   ['neg','grn','blu'].forEach(k=>{
@@ -1204,6 +1267,8 @@ function initResizer(){
 /* ── 헤더 클릭 → 해당 열 음수행만 보기 ── */
 document.getElementById('tbl-area').addEventListener('click', e => {
   if (e.target.classList.contains('resizer')) return;
+  const pth = e.target.closest('th[data-pline]');
+  if (pth) { openPlineMenu(pth); return; }
   const th = e.target.closest('th[data-ci]');
   if (!th) return;
   toggleColNegFilter(parseInt(th.getAttribute('data-ci')));
