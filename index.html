@@ -231,8 +231,6 @@ tr.hidden-row{display:none}
 thead th[data-ci]{cursor:pointer}
 thead th[data-ci]:hover{filter:brightness(1.12)}
 thead th[data-ci].col-filter-active{outline:2px solid #ef4444;outline-offset:-2px}
-thead th[data-pline]:hover{filter:brightness(1.12)}
-thead th[data-pline].col-filter-active{outline:2px solid #3b82f6;outline-offset:-2px}
 #pline-menu{position:fixed;z-index:1000;min-width:140px;max-height:320px;overflow:auto;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);padding:4px;font-size:12px}
 #pline-menu .pl-item{display:flex;justify-content:space-between;gap:12px;padding:6px 10px;border-radius:5px;cursor:pointer;white-space:nowrap}
 #pline-menu .pl-item:hover{background:var(--border)}
@@ -406,6 +404,7 @@ td.has-memo.neg::after,td.has-memo.neg-light::after{
     <input type="text" id="f-code" placeholder="품목코드 또는 단품명칭 검색…"
       style="height:28px;padding:0 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;width:170px"
       oninput="applyFilter()">
+    <button class="toggle-btn" id="t-pline" onclick="openPlineMenu(this)" style="display:none">포장라인 ▾</button>
   </div>
 
   <div class="fsep"></div>
@@ -856,14 +855,15 @@ function renderTable(ws,lastR,yeyang_set,mulip_set,ym,managedRows,dateGroups,nco
   plineCol=null; activePline=null; closePlineMenu(); // 재변환 시 표가 새로 그려지므로 라인 필터 초기화
   tailCols.forEach((t,i)=>{
     const ci=10+dateGroups.length*5+i;
-    // 포장라인 열은 음수 필터 대신 라인 값 선택 필터
+    // 포장라인 열은 음수 필터 대신 필터 바의 라인 선택 버튼으로 필터
     if(plineCol===null&&t.label.replace(/<br>|\s/g,'')==='포장라인'){
       plineCol=t.col;
-      h+=`<th rowspan="2" class="fixed" style="padding:4px 5px;font-size:11px;cursor:pointer" data-pline="${t.col}" title="클릭해서 포장라인 필터">${t.label} ▾</th>`;
+      h+=`<th rowspan="2" class="fixed" style="padding:4px 5px;font-size:11px">${t.label}</th>`;
       return;
     }
     h+=`<th rowspan="2" class="fixed" style="padding:4px 5px;font-size:11px" data-ci="${ci}">${t.label}</th>`;
   });
+  updatePlineBtn();
   h+='</tr><tr>';
   dateGroups.forEach((g,i)=>{
     const isWknd = isWeekend(g.label);
@@ -1018,7 +1018,7 @@ function toggleColNegFilter(ci){
   applyFilter();
 }
 
-/* ── 포장라인 필터 (헤더 클릭 → 라인 선택) ── */
+/* ── 포장라인 필터 (필터 바 버튼 → 라인 선택) ── */
 let plineCol=null, activePline=null;
 function plineVal(tr){
   const td=tr.querySelector(`td[data-col="${plineCol}"]`);
@@ -1030,10 +1030,11 @@ function closePlineMenu(){
   document.removeEventListener('mousedown',onPlineOutside,true);
   document.removeEventListener('keydown',onPlineEsc,true);
 }
-function onPlineOutside(e){ if(!e.target.closest('#pline-menu')&&!e.target.closest('th[data-pline]'))closePlineMenu(); }
+function onPlineOutside(e){ if(!e.target.closest('#pline-menu')&&!e.target.closest('#t-pline'))closePlineMenu(); }
 function onPlineEsc(e){ if(e.key==='Escape')closePlineMenu(); }
-function openPlineMenu(th){
+function openPlineMenu(btn){
   if(document.getElementById('pline-menu')){ closePlineMenu(); return; }
+  if(plineCol===null)return;
   const counts=new Map();
   document.querySelectorAll('#tbl-area tbody tr').forEach(tr=>{
     const v=plineVal(tr); counts.set(v,(counts.get(v)||0)+1);
@@ -1047,7 +1048,7 @@ function openPlineMenu(th){
   const m=document.createElement('div');
   m.id='pline-menu'; m.innerHTML=h;
   document.body.appendChild(m);
-  const r=th.getBoundingClientRect();
+  const r=btn.getBoundingClientRect();
   m.style.top=(r.bottom+2)+'px';
   m.style.left=Math.max(4,Math.min(r.left,window.innerWidth-m.offsetWidth-4))+'px';
   m.addEventListener('click',e=>{
@@ -1060,8 +1061,14 @@ function openPlineMenu(th){
 }
 function setPlineFilter(v){
   activePline=v;
-  document.querySelectorAll('th[data-pline]').forEach(th=>th.classList.toggle('col-filter-active',v!==null));
+  updatePlineBtn();
   applyFilter();
+}
+function updatePlineBtn(){
+  const btn=document.getElementById('t-pline');
+  btn.style.display=plineCol===null?'none':'';
+  btn.className='toggle-btn'+(activePline!==null?' on-blu':'');
+  btn.textContent=activePline===null?'포장라인 ▾':`포장라인: ${activePline===''?'(비어있음)':activePline} ▾`;
 }
 
 /* ── 표시 중인 행 기준 열별 합계 ── */
@@ -1157,8 +1164,8 @@ function toggleFilter(key){
 function resetFilter(){
   activeFilters={neg:false,grn:false,blu:false};
   activeNegCol=null;
-  activePline=null; closePlineMenu();
-  document.querySelectorAll('th[data-ci],th[data-pline]').forEach(th=>th.classList.remove('col-filter-active'));
+  activePline=null; closePlineMenu(); updatePlineBtn();
+  document.querySelectorAll('th[data-ci]').forEach(th=>th.classList.remove('col-filter-active'));
   document.getElementById('f-gubun').value='';
   document.getElementById('f-code').value='';
   ['neg','grn','blu'].forEach(k=>{
@@ -1267,8 +1274,6 @@ function initResizer(){
 /* ── 헤더 클릭 → 해당 열 음수행만 보기 ── */
 document.getElementById('tbl-area').addEventListener('click', e => {
   if (e.target.classList.contains('resizer')) return;
-  const pth = e.target.closest('th[data-pline]');
-  if (pth) { openPlineMenu(pth); return; }
   const th = e.target.closest('th[data-ci]');
   if (!th) return;
   toggleColNegFilter(parseInt(th.getAttribute('data-ci')));
